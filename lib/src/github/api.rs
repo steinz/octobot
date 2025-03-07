@@ -36,6 +36,13 @@ pub trait Session: Send + Sync {
         commit: &str,
         head: Option<&str>,
     ) -> Result<Vec<PullRequest>>;
+    async fn get_merged_commits(
+        &self,
+        owner: &str,
+        repo: &str,
+        commit: &str,
+        branch: &str,
+    )  -> Result<Vec<str>>;
 
     async fn create_pull_request(
         &self,
@@ -545,6 +552,38 @@ impl Session for GithubSession {
         return self
             .do_get_pull_requests(owner, repo, head, paging_url, err_fmt)
             .await;
+    }
+
+    // Gets all the commits merged together with one PR (rebase and merge)
+    async fn get_merged_commits(
+        &self,
+        owner: &str,
+        repo: &str,
+        commit: &str,
+        branch: &str,
+    ) -> Result<Vec<str>> {
+        let res = match self
+        .client
+        .post::<string, Vec<string>>("graphql", "TODO: body")
+        .await {
+            Ok(r) => r,
+            Err(e) => return Err(e)
+        };
+/*
+$ gh api graphql --paginate -f query='
+    query($endCursor: String) {
+      viewer {
+        repositories(first: 100, after: $endCursor) {
+          nodes { nameWithOwner }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    }
+  '
+*/
     }
 
     async fn create_pull_request(
