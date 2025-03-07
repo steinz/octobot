@@ -569,9 +569,45 @@ impl Session for GithubSession {
         &self,
         owner: &str,
         repo: &str,
-        commit: &str,
-        branch: &str,
-    ) -> Result<Vec<str>> {
+        commit_hash: &str,
+        pull_request_number: u32,
+    ) -> Result<Vec<String>> {
+        let mut result = vec![];
+        let mut current_hash = commit_hash;
+        while true {
+            match self.get_commit(owner, repo, current_hash).await {
+                Err(e) => return Err(e), // TODO: add context
+                Ok(commit) => {
+                    match self
+                    .get_pull_requests_by_commit(&self, owner, repo, commit.hash)
+                    .await {
+                        Err(e) => return Err(e), // TODO: add context
+                        Ok(pulls) => {
+                            if pulls[0].number != pull_request_number {
+                                return Ok(result);
+                            }
+                            result.push(String::from(current_hash));
+                            current_hash = commit.parent;
+                        }
+                    }
+                },
+            };
+
+            let commit_result = self.get_commit(owner, repo, current_hash).await;
+            if let Err(e) = commit_result {
+                return Err(e); // TODO: add context
+            }
+            let pulls = self
+                .get_pull_requests_by_commit(&self, owner, repo, commit.hash)
+                .await;
+            if let Err(e) = pulls {
+                return Err(e); // TODO: add context
+            }
+            let pull = pulls[0]; // TODO: Find pull targeting main branch.
+            pull
+        }
+
+
         let res = match self
         .client
         .post::<string, Vec<string>>("graphql", "TODO: body")
