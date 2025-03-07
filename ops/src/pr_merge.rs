@@ -135,6 +135,7 @@ pub async fn try_merge_pull_request(
     // TODO: Can infer how many commits made it to main if we know we rebase and merged.
     // if pull_request.is_merged() && pull_request.theoretical_api_that_tells_us_the_pr_was_rebase_and_merged
 
+
     // TODO: need list of commits changed by this PR here, not just latest
     let merge_commit_sha = if let Some(ref sha) = pull_request.merge_commit_sha {
         sha
@@ -144,6 +145,8 @@ pub async fn try_merge_pull_request(
             pull_request.number
         ));
     };
+
+    all_merge_commit_shas = get_merge_commits(git, sesion, merge_commit_sha);
 
     // strip everything before last slash
     let regex = Regex::new(r".*/").unwrap();
@@ -234,6 +237,20 @@ pub async fn try_merge_pull_request(
     }
 
     Ok(new_pr)
+}
+
+pub fn get_merge_commits(
+    git: &Git,
+    session: &dyn Session,
+    commit_hash: &str,
+) -> Result<Vec<String>> {
+    let mut result = vec![];
+
+    while true {
+        session.get_commit(owner, repo, number)
+    }
+
+    return Ok(result);
 }
 
 pub fn cherry_pick(

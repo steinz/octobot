@@ -21,6 +21,7 @@ pub trait Session: Send + Sync {
     fn github_token(&self) -> &str;
     fn github_app_id(&self) -> Option<u32>;
 
+    async fn get_commit(&self, owner: &str, repo: &str, commit: &str) -> Result<Commit>;
     async fn get_pull_request(&self, owner: &str, repo: &str, number: u32) -> Result<PullRequest>;
     async fn get_pull_requests(
         &self,
@@ -491,6 +492,15 @@ impl Session for GithubSession {
     fn github_app_id(&self) -> Option<u32> {
         self.app_id
     }
+
+    async fn get_commit(&self, owner: &str, repo: &str, commit: &str) -> Result<Commit> {
+        return self
+            .client
+            .get(&format!("repos/{}/{}/commits/{}", owner, repo, commit))
+            .await
+            .map_err(|e| anyhow!("Error looking up commit: {}/{} {}: {}", owner, repo, commit, e));
+    }
+
 
     async fn get_pull_request(&self, owner: &str, repo: &str, number: u32) -> Result<PullRequest> {
         let pull_request: Result<PullRequest> = self
