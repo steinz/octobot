@@ -132,6 +132,9 @@ pub async fn try_merge_pull_request(
         ));
     }
 
+    // TODO: Can infer how many commits made it to main if we know we rebase and merged.
+    // if pull_request.is_merged() && pull_request.theoretical_api_that_tells_us_the_pr_was_rebase_and_merged
+
     // TODO: need list of commits changed by this PR here, not just latest
     let merge_commit_sha = if let Some(ref sha) = pull_request.merge_commit_sha {
         sha
