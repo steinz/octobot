@@ -574,62 +574,24 @@ impl Session for GithubSession {
     ) -> Result<Vec<String>> {
         let mut result = vec![];
         let mut current_hash = commit_hash;
-        while true {
-            match self.get_commit(owner, repo, current_hash).await {
-                Err(e) => return Err(e), // TODO: add context
-                Ok(commit) => {
-                    match self
-                    .get_pull_requests_by_commit(&self, owner, repo, commit.hash)
-                    .await {
-                        Err(e) => return Err(e), // TODO: add context
-                        Ok(pulls) => {
-                            if pulls[0].number != pull_request_number {
-                                return Ok(result);
-                            }
-                            result.push(String::from(current_hash));
-                            current_hash = commit.parent;
-                        }
-                    }
-                },
-            };
-
+        for i in 0..10 {
             let commit_result = self.get_commit(owner, repo, current_hash).await;
-            if let Err(e) = commit_result {
-                return Err(e); // TODO: add context
-            }
-            let pulls = self
+            let Ok(commit) = commit_result else {
+                return commit; // TODO: add context to err
+            };
+            let pulls_result = self
                 .get_pull_requests_by_commit(&self, owner, repo, commit.hash)
                 .await;
-            if let Err(e) = pulls {
-                return Err(e); // TODO: add context
+            let Ok(pulls) = pulls_result else {
+                return pulls_result; // TODO: add context to err
+            };
+            if !pulls.iter().any(|&p| p.number == pull_request_number && p.merge_commit_sha == current_hash) {
+                return Ok(result)
             }
-            let pull = pulls[0]; // TODO: Find pull targeting main branch.
-            pull
+            result.push(String::from(current_hash));
+            current_hash = commit.parent;
         }
-
-
-        let res = match self
-        .client
-        .post::<string, Vec<string>>("graphql", "TODO: body")
-        .await {
-            Ok(r) => r,
-            Err(e) => return Err(e)
-        };
-/*
-$ gh api graphql --paginate -f query='
-    query($endCursor: String) {
-      viewer {
-        repositories(first: 100, after: $endCursor) {
-          nodes { nameWithOwner }
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-        }
-      }
-    }
-  '
-*/
+        return Err("won't backport more than 10 commits")
     }
 
     async fn create_pull_request(
