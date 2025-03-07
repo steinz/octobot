@@ -132,6 +132,7 @@ pub async fn try_merge_pull_request(
         ));
     }
 
+    // TODO: need list of commits changed by this PR here, not just latest
     let merge_commit_sha = if let Some(ref sha) = pull_request.merge_commit_sha {
         sha
     } else {

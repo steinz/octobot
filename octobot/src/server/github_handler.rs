@@ -325,6 +325,7 @@ impl Handler for GithubHandler {
         if let Some(ref issue) = data.issue {
             if data.pull_request.is_none() && issue.html_url.contains("/pull/") {
                 data.pull_request = match github_session
+                    // pull_request is fetched here
                     .get_pull_request(repository.owner.login(), &repository.name, issue.number)
                     .await
                 {
