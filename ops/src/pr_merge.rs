@@ -135,7 +135,6 @@ pub async fn try_merge_pull_request(
     // TODO: Can infer how many commits made it to main if we know we rebase and merged.
     // if pull_request.is_merged() && pull_request.theoretical_api_that_tells_us_the_pr_was_rebase_and_merged
 
-
     // TODO: need list of commits changed by this PR here, not just latest
     let merge_commit_sha = if let Some(ref sha) = pull_request.merge_commit_sha {
         sha
@@ -146,7 +145,13 @@ pub async fn try_merge_pull_request(
         ));
     };
 
-    all_merge_commit_shas = get_merge_commits(git, sesion, merge_commit_sha);
+    // TODO: okay to make blocking api calls in here? Can we get them via the local git checkout instead?
+    let all_merge_commit_shas_result = session
+        .get_merged_commits(req.repo.owner.login(), &req.repo.name, merge_commit_sha, pull_request.number)
+        .await;
+    let Ok(all_merge_commit_shas) = all_merge_commit_shas_result else {
+        return Err(anyhow!("Failed")) // TODO: Post this as a comment?
+    };
 
     // strip everything before last slash
     let regex = Regex::new(r".*/").unwrap();
@@ -164,15 +169,18 @@ pub async fn try_merge_pull_request(
         ));
     }
 
-    let (title, body, whitespace_mode) = cherry_pick(
-        git,
-        merge_commit_sha,
-        &pr_branch_name,
-        pull_request.number,
-        &req.target_branch,
-        &pull_request.base.ref_name,
-        &req.release_branch_prefix,
-    )?;
+    // TODO: Use mutated PR title below instead of title, accum body and whitespace_mode
+    for sha in all_merge_commit_shas {
+        let (title, body, whitespace_mode) = cherry_pick(
+            git,
+            merge_commit_sha,
+            &pr_branch_name,
+            pull_request.number,
+            &req.target_branch,
+            &pull_request.base.ref_name,
+            &req.release_branch_prefix,
+        )?;
+    }
 
     git.run(&["push", "origin", &format!("HEAD:{}", pr_branch_name)])?;
 
@@ -237,20 +245,6 @@ pub async fn try_merge_pull_request(
     }
 
     Ok(new_pr)
-}
-
-pub fn get_merge_commits(
-    git: &Git,
-    session: &dyn Session,
-    commit_hash: &str,
-) -> Result<Vec<String>> {
-    let mut result = vec![];
-
-    while true {
-        session.get_commit(owner, repo, number)
-    }
-
-    return Ok(result);
 }
 
 pub fn cherry_pick(

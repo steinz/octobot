@@ -279,6 +279,7 @@ fn some_commits() -> Vec<Commit> {
             commit: CommitDetails {
                 message: "I made a commit!".into(),
             },
+            parents: vec![],
         },
         Commit {
             sha: "ffeedd00110022".into(),
@@ -288,6 +289,7 @@ fn some_commits() -> Vec<Commit> {
             commit: CommitDetails {
                 message: "I also made a commit!".into(),
             },
+            parents: vec![],
         },
     ]
 }
@@ -2242,6 +2244,7 @@ fn some_jira_commits() -> Vec<Commit> {
         commit: CommitDetails {
             message: "Fix [SER-1] Add the feature\n\nThe body ([OTHER-123])".into(),
         },
+        parents: vec![],
     }]
 }
 
@@ -2253,6 +2256,7 @@ fn many_jira_commits() -> Vec<Commit> {
         commit: CommitDetails {
             message: "Fix [SER-1] Add the feature\n\nThe body ([OTHER-123])".into(),
         },
+        parents: vec![],
     };
 
     (0..21)

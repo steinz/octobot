@@ -587,11 +587,12 @@ impl Session for GithubSession {
                 return Err(anyhow!("Error looking up commit pulls: {}/{} {}: {}", owner, repo, current_hash, pulls_result.unwrap_err()));
             };
             if !pulls.iter().any(|p| p.number == pull_request_number && p.merge_commit_sha.as_ref().is_some_and(|x|*x==current_hash)) {
-                return Ok(result)
+                result.reverse();
+                return Ok(result);
             }
             result.push(current_hash);
             current_hash = match commit.parents.first() {
-                None => return Err(anyhow!("Commit has no parent")),
+                None => return Err(anyhow!("Commit {} has no parent", commit.sha)),
                 Some(c) => c.to_owned().sha
             };
         }

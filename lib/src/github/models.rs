@@ -552,7 +552,7 @@ impl Commit {
             commit: CommitDetails {
                 message: String::new(),
             },
-            parent_sha: None,
+            parents: vec![],
         }
     }
 
