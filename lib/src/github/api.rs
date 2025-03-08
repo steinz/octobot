@@ -41,9 +41,9 @@ pub trait Session: Send + Sync {
         &self,
         owner: &str,
         repo: &str,
-        commit: &str,
-        branch: &str,
-    )  -> Result<Vec<str>>;
+        commit_hash: &str,
+        pull_request_number: u32,
+    )  -> Result<Vec<String>>;
 
     async fn create_pull_request(
         &self,
@@ -574,13 +574,14 @@ impl Session for GithubSession {
     ) -> Result<Vec<String>> {
         let mut result = vec![];
         let mut current_hash = commit_hash;
+        const MAX_COMMITS_TO_BACKPORT: u32 = 10;
         for i in 0..10 {
             let commit_result = self.get_commit(owner, repo, current_hash).await;
             let Ok(commit) = commit_result else {
-                return commit; // TODO: add context to err
+                return commit_result; // TODO: add context to err
             };
             let pulls_result = self
-                .get_pull_requests_by_commit(&self, owner, repo, commit.hash)
+                .get_pull_requests_by_commit(owner, repo, commit.sha, None)
                 .await;
             let Ok(pulls) = pulls_result else {
                 return pulls_result; // TODO: add context to err
@@ -589,7 +590,7 @@ impl Session for GithubSession {
                 return Ok(result)
             }
             result.push(String::from(current_hash));
-            current_hash = commit.parent;
+            current_hash = commit.parent_sha;
         }
         return Err("won't backport more than 10 commits")
     }
