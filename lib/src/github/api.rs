@@ -576,7 +576,7 @@ impl Session for GithubSession {
         let mut current_hash = String::from(commit_hash);
         const MAX_COMMITS_TO_BACKPORT: u32 = 10;
         for i in 0..10 {
-            let commit_result = self.get_commit(owner, repo, current_hash).await;
+            let commit_result = self.get_commit(owner, repo, &current_hash).await;
             let Ok(commit) = commit_result else {
                 return Err(anyhow!("Error looking up commit: {}/{} {}: {}", owner, repo, current_hash, commit_result.unwrap_err()));
             };
@@ -586,11 +586,14 @@ impl Session for GithubSession {
             let Ok(pulls) = pulls_result else {
                 return Err(anyhow!("Error looking up commit pulls: {}/{} {}: {}", owner, repo, current_hash, pulls_result.unwrap_err()));
             };
-            if !pulls.iter().any(|&p| p.number == pull_request_number && p.merge_commit_sha.is_some_and(|x|x==current_hash)) {
+            if !pulls.iter().any(|p| p.number == pull_request_number && p.merge_commit_sha.as_ref().is_some_and(|x|*x==current_hash)) {
                 return Ok(result)
             }
             result.push(String::from(current_hash));
-            current_hash = commit.parents[0].sha;
+            current_hash = match commit.parents.first() {
+                None => return Err(anyhow!("Commit has no parent")),
+                Some(c) => String::from(c.sha),
+            };
         }
         return Err(anyhow!("Error looking up PR {} commits: Won't fetch more than 10 commits", pull_request_number))
     }
