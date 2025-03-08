@@ -479,6 +479,7 @@ pub struct Commit {
     pub html_url: String,
     pub commit: CommitDetails,
     pub author: Option<User>,
+    pub parents: Vec<Commit>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
@@ -551,6 +552,7 @@ impl Commit {
             commit: CommitDetails {
                 message: String::new(),
             },
+            parent_sha: None,
         }
     }
 
