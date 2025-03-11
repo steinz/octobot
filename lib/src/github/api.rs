@@ -587,7 +587,7 @@ impl Session for GithubSession {
                 return Err(anyhow!("Error looking up commit pulls: {}/{} {}: {}", owner, repo, current_hash, pulls_result.unwrap_err()));
             };
             if !pulls.iter().any(|p| p.number == pull_request_number && p.merge_commit_sha.as_ref().is_some_and(|x|*x==commit_hash)) {
-                result.reverse();
+                result.reverse(); // Return oldest to newest commit.
                 return Ok(result);
             }
             result.push(current_hash);
