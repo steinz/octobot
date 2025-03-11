@@ -1,4 +1,6 @@
 use std::borrow::Borrow;
+use std::cmp::max;
+use std::fmt;
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -119,6 +121,23 @@ pub async fn merge_pull_request<'a>(
     }
 }
 
+#[derive(PartialOrd, Ord, PartialEq, Eq)]
+enum WhitespaceMode {
+    None,
+    IgnoreSpaceChange,
+    IgnoreAllSpace,
+}
+
+impl fmt::Display for WhitespaceMode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            WhitespaceMode::None => write!(f, "none"),
+            WhitespaceMode::IgnoreSpaceChange => write!(f, "ignore-space-change"),
+            WhitespaceMode::IgnoreAllSpace => write!(f, "ignore-all-space"),
+        }
+    }
+}
+
 pub async fn try_merge_pull_request(
     git: &Git,
     session: &dyn Session,
@@ -135,7 +154,6 @@ pub async fn try_merge_pull_request(
     // TODO: Can infer how many commits made it to main if we know we rebase and merged.
     // if pull_request.is_merged() && pull_request.theoretical_api_that_tells_us_the_pr_was_rebase_and_merged
 
-    // TODO: need list of commits changed by this PR here, not just latest
     let merge_commit_sha = if let Some(ref sha) = pull_request.merge_commit_sha {
         sha
     } else {
@@ -169,6 +187,10 @@ pub async fn try_merge_pull_request(
         ));
     }
 
+    let mut titles = vec![] ;
+    let mut bodies = vec![];
+    let mut max_whitespace_mode = WhitespaceMode::None;
+
     // TODO: Use mutated PR title below instead of title, accum body and whitespace_mode
     for sha in all_merge_commit_shas {
         let (title, body, whitespace_mode) = cherry_pick(
@@ -180,7 +202,19 @@ pub async fn try_merge_pull_request(
             &pull_request.base.ref_name,
             &req.release_branch_prefix,
         )?;
+        titles.push(title);
+        bodies.push(body);
+        max_whitespace_mode = max(max_whitespace_mode, whitespace_mode)
     }
+
+    let title = match titles.len() {
+        1 => &titles[0],
+        _ => &pull_request.title, // TODO: mutate
+    };
+    let body = match bodies.len() {
+        1 => &bodies[0],
+        _ => &bodies.join("\n---------\n"), // TODO: *s before each one?
+    };
 
     git.run(&["push", "origin", &format!("HEAD:{}", pr_branch_name)])?;
 
@@ -231,10 +265,10 @@ pub async fn try_merge_pull_request(
             .await?;
     }
 
-    if !whitespace_mode.is_empty() {
+    if max_whitespace_mode != WhitespaceMode::None {
         let msg = format!(
             "Cherry-pick required option `{}`. Please verify correctness.",
-            whitespace_mode
+            max_whitespace_mode
         );
         if let Err(e) = session
             .comment_pull_request(owner, repo, new_pr.number, &msg)
@@ -255,7 +289,7 @@ pub fn cherry_pick(
     target_branch: &str,
     orig_base_branch: &str,
     release_branch_prefix: &str,
-) -> Result<(String, String, String)> {
+) -> Result<(String, String, WhitespaceMode)> {
     git.checkout_branch(pr_branch_name, &format!("origin/{}", target_branch))?;
 
     let (user, email) = git.get_commit_author(commit_hash)?;
@@ -265,21 +299,21 @@ pub fn cherry_pick(
 
     // cherry-pick!
 
-    let mut whitespace_mode = "";
+    let mut whitespace_mode = WhitespaceMode::None;
     if let Err(e) = do_cherry_pick(git, commit_hash, &[], &user_opts) {
         info!(
             "Could not cherry-pick normally. Ignoring changed whitespace. {}",
             e
         );
 
-        whitespace_mode = "ignore-space-change";
+        whitespace_mode = WhitespaceMode::IgnoreSpaceChange;
         if let Err(e) = do_cherry_pick(git, commit_hash, &["-X", whitespace_mode], &user_opts) {
             info!(
                 "Could not cherry-pick with `-X {}`. Ignoring all whitespace. {}",
                 whitespace_mode, e
             );
 
-            whitespace_mode = "ignore-all-space";
+            whitespace_mode = WhitespaceMode::IgnoreAllSpace;
             if let Err(e) = do_cherry_pick(git, commit_hash, &["-X", whitespace_mode], &user_opts) {
                 info!("Could not cherry-pick with `-X {}`: {}", whitespace_mode, e);
                 return Err(e);
@@ -303,7 +337,7 @@ pub fn cherry_pick(
     amend_args.extend(["commit", "--amend", "-F", "-"].iter());
     git.run_with_stdin(&amend_args, &format!("{}\n\n{}", &title, &body))?;
 
-    Ok((title, body, whitespace_mode.into()))
+    Ok((title, body, whitespace_mode))
 }
 
 fn do_cherry_pick(
